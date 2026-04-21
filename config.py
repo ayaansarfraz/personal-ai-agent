@@ -17,10 +17,16 @@ def _str_env(name: str) -> str | None:
 
 
 ANTHROPIC_API_KEY = _str_env("ANTHROPIC_API_KEY")
+# Telegram bot (used by main.py). Optional at import time — main.py exits if unset when you run the bot.
+TELEGRAM_BOT_TOKEN = _str_env("TELEGRAM_BOT_TOKEN")
 # Optional: agent runs without it; get_weather returns an error dict until configured.
 OPENWEATHERMAP_API_KEY = _str_env("OPENWEATHERMAP_API_KEY")
 # Optional override; use a dated ID if the short alias is unavailable for your account.
 ANTHROPIC_MODEL = _str_env("ANTHROPIC_MODEL") or "claude-sonnet-4-5-20250929"
+# Supabase — used by db.py for conversation persistence. Optional: bot runs without them
+# but conversation history will be disabled.
+SUPABASE_URL = _str_env("SUPABASE_URL")
+SUPABASE_KEY = _str_env("SUPABASE_KEY")
 
 if not ANTHROPIC_API_KEY:
     raise EnvironmentError("Missing required environment variable: ANTHROPIC_API_KEY")

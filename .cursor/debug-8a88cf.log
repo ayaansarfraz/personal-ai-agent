@@ -1,0 +1,10 @@
+{"sessionId": "8a88cf", "timestamp": 1776749956887, "location": "db.py", "message": "_get_client: checking credentials", "data": {"has_url": true, "has_key": true, "will_create_client": true}, "hypothesisId": "H1"}
+{"sessionId": "8a88cf", "timestamp": 1776749956955, "location": "db.py", "message": "_get_client: client created", "data": {}, "hypothesisId": "H1"}
+{"sessionId": "8a88cf", "timestamp": 1776749956955, "location": "db.py", "message": "save_message: before insert", "data": {"telegram_user_id": 123456789, "role": "user", "content_len": 12}, "hypothesisId": "H2"}
+{"sessionId": "8a88cf", "timestamp": 1776749957323, "location": "db.py", "message": "save_message: exception", "data": {"exc_type": "APIError", "exc_str": "{'message': 'new row violates row-level security policy for table \"conversations\"', 'code': '42501', 'hint': None, 'details': None}"}, "hypothesisId": "H2"}
+{"sessionId": "8a88cf", "timestamp": 1776749957407, "location": "db.py", "message": "get_conversation_history: ok", "data": {"telegram_user_id": 123456789, "row_count": 0}, "hypothesisId": "H5"}
+{"sessionId": "8a88cf", "timestamp": 1776750009749, "location": "db.py", "message": "_get_client: checking credentials", "data": {"has_url": true, "has_key": true, "will_create_client": true}, "hypothesisId": "H1"}
+{"sessionId": "8a88cf", "timestamp": 1776750009811, "location": "db.py", "message": "_get_client: client created", "data": {}, "hypothesisId": "H1"}
+{"sessionId": "8a88cf", "timestamp": 1776750009811, "location": "db.py", "message": "save_message: before insert", "data": {"telegram_user_id": 123456789, "role": "user", "content_len": 12}, "hypothesisId": "H2"}
+{"sessionId": "8a88cf", "timestamp": 1776750010025, "location": "db.py", "message": "save_message: insert execute returned", "data": {"row_count": 1, "has_error_attr": false}, "hypothesisId": "H2"}
+{"sessionId": "8a88cf", "timestamp": 1776750010110, "location": "db.py", "message": "get_conversation_history: ok", "data": {"telegram_user_id": 123456789, "row_count": 1}, "hypothesisId": "H5"}

@@ -1,9 +1,17 @@
+"""
+Claude agent loop + tool calling. Used by the Telegram bot (`main.py`) and by the local CLI below.
+"""
+
 import json
+import logging
 
 import anthropic
 
 from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+from db import get_conversation_history, save_message
 from tools.weather import WEATHER_TOOL_SCHEMA, get_weather
+
+logger = logging.getLogger(__name__)
 
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -26,12 +34,28 @@ def _text_from_message_content(content) -> str:
     return "".join(parts).strip()
 
 
-def run_agent(user_message: str) -> str:
+def run_agent(user_message: str, telegram_user_id: int | None = None) -> str:
     """
     Run one turn of the agent loop for a single user message.
-    Returns Claude's final text response.
+
+    Args:
+        user_message: The text sent by the user.
+        telegram_user_id: If provided, conversation history is loaded from Supabase
+            before calling Claude, and both the user message and assistant reply are
+            persisted after the response is ready.
+
+    Returns:
+        Claude's final text response.
     """
-    messages = [{"role": "user", "content": user_message}]
+    # Load prior conversation history so Claude has context across messages.
+    # Falls back to an empty list if Supabase is unavailable or user is unknown.
+    if telegram_user_id is not None:
+        history = get_conversation_history(telegram_user_id)
+    else:
+        history = []
+
+    # Append the new user message after the history so Claude sees full context
+    messages = history + [{"role": "user", "content": user_message}]
 
     while True:
         try:
@@ -52,11 +76,20 @@ def run_agent(user_message: str) -> str:
             return f"Anthropic API error: {e}"
 
         if response.stop_reason == "end_turn":
-            return _text_from_message_content(response.content) or ""
+            final_text = _text_from_message_content(response.content) or ""
+            # Persist both sides of the exchange so history is available next turn
+            if telegram_user_id is not None:
+                save_message(telegram_user_id, "user", user_message)
+                save_message(telegram_user_id, "assistant", final_text)
+            return final_text
 
         if response.stop_reason in ("max_tokens", "stop_sequence"):
             partial = _text_from_message_content(response.content)
             if partial:
+                # Still persist what we have so the conversation isn't lost
+                if telegram_user_id is not None:
+                    save_message(telegram_user_id, "user", user_message)
+                    save_message(telegram_user_id, "assistant", partial)
                 return partial
             return f"[Stopped: {response.stop_reason}; no text in this segment]"
 
@@ -126,5 +159,6 @@ if __name__ == "__main__":
             print("Goodbye!")
             break
 
+        # telegram_user_id=None → no persistence in CLI mode
         response = run_agent(user_input)
         print(f"Agent: {response}\n")

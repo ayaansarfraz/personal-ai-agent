@@ -73,6 +73,7 @@ def main() -> None:
         Application.builder()
         .token(TELEGRAM_BOT_TOKEN)
         .concurrent_updates(True)
+        .connect_timeout(3)   # cap connection-establishment wait so cleanup finishes quickly
         .build()
     )
 

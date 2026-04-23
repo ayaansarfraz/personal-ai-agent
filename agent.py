@@ -4,12 +4,19 @@ Claude agent loop + tool calling. Used by the Telegram bot (`main.py`) and by th
 
 import json
 import logging
+from datetime import datetime
+
+import pytz
 
 import anthropic
 
 from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
 from db import get_conversation_history, save_message
 from tools.weather import WEATHER_TOOL_SCHEMA, get_weather
+from tools.notes import NOTES_TOOL_SCHEMA, manage_notes
+from tools.todos import TODOS_TOOL_SCHEMA, manage_todos
+from tools.search import SEARCH_TOOL_SCHEMA, search_web
+from tools.calendar import CALENDAR_TOOL_SCHEMA, manage_calendar
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +27,20 @@ MODEL = ANTHROPIC_MODEL
 # Map tool names to their Python implementations so we can dispatch by name
 TOOLS = {
     "get_weather": get_weather,
+    "manage_notes": manage_notes,
+    "manage_todos": manage_todos,
+    "search_web": search_web,
+    "manage_calendar": manage_calendar,
 }
 
 # All tool schemas passed to Claude on every request
-TOOL_SCHEMAS = [WEATHER_TOOL_SCHEMA]
+TOOL_SCHEMAS = [
+    WEATHER_TOOL_SCHEMA,
+    NOTES_TOOL_SCHEMA,
+    TODOS_TOOL_SCHEMA,
+    SEARCH_TOOL_SCHEMA,
+    CALENDAR_TOOL_SCHEMA,
+]
 
 
 def _text_from_message_content(content) -> str:
@@ -57,11 +74,27 @@ def run_agent(user_message: str, telegram_user_id: int | None = None) -> str:
     # Append the new user message after the history so Claude sees full context
     messages = history + [{"role": "user", "content": user_message}]
 
+    toronto_tz = pytz.timezone("America/Toronto")
+    today = datetime.now(toronto_tz).strftime("%A, %B %d, %Y")
+    today_iso = datetime.now(toronto_tz).strftime("%Y-%m-%d")
+    system_prompt = (
+        f"Today is {today} (YYYY-MM-DD: {today_iso}). You are a helpful personal AI assistant. "
+        "STRICT RULES YOU MUST FOLLOW:\n"
+        "1. ALWAYS call manage_calendar tool for ANY scheduling request - never respond without calling it first\n"
+        "2. ALWAYS call get_weather tool for ANY weather question\n"
+        "3. ALWAYS call search_web tool for ANY current events or facts you don't know\n"
+        "4. ALWAYS call manage_todos tool for ANY todo or reminder request\n"
+        "5. ALWAYS call manage_notes tool for ANY note request\n"
+        f"6. When calculating dates: today is {today}, tomorrow is the next day, use YYYY-MM-DD HH:MM format\n"
+        "Never answer questions about weather, calendar, search, todos or notes from memory - always use the tools."
+    )
+
     while True:
         try:
             response = client.messages.create(
                 model=MODEL,
                 max_tokens=1024,
+                system=system_prompt,
                 tools=TOOL_SCHEMAS,
                 messages=messages,
             )
@@ -110,13 +143,19 @@ def run_agent(user_message: str, telegram_user_id: int | None = None) -> str:
 
                 print(f"\n[Tool call] {tool_name}({json.dumps(tool_input, indent=2)})")
 
-                # Step 4: Dispatch to the matching Python function
+                # Step 4: Dispatch to the matching Python function.
+                # For user-scoped tools (notes, todos) inject telegram_user_id so
+                # Claude doesn't need to pass it explicitly in every call.
                 tool_fn = TOOLS.get(tool_name)
                 if tool_fn is None:
                     result = {"error": f"Unknown tool: {tool_name}"}
                 else:
                     try:
-                        result = tool_fn(**tool_input)
+                        kwargs = dict(tool_input)
+                        if tool_name in ("manage_notes", "manage_todos", "manage_calendar"):
+                            # Always inject the real user ID — never let Claude supply this value
+                            kwargs["telegram_user_id"] = telegram_user_id
+                        result = tool_fn(**kwargs)
                     except TypeError as e:
                         result = {"error": f"Invalid tool arguments: {e}"}
                     except Exception as e:
